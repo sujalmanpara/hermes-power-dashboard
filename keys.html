@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Keys — Hermes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --hull:#0a0c10;--panel:#0e1117;--shelf:#141820;--rack:#1a1f2a;
+  --wire:rgba(255,255,255,.06);--wire-mid:rgba(255,255,255,.09);--wire-bright:rgba(255,255,255,.14);
+  --ink:#e2e4e9;--ink-2:#9ca3af;--ink-3:#6b7280;--ink-4:#3d4452;
+  --amber:#e5954a;--amber-dim:rgba(229,149,74,.15);--amber-glow:rgba(229,149,74,.08);
+  --led-green:#4ade80;--led-yellow:#facc15;--led-red:#f87171;--led-blue:#60a5fa;
+  --mono:'JetBrains Mono',monospace;
+  --radius:3px;
+}
+body{font-family:var(--mono);background:var(--hull);color:var(--ink);min-height:100dvh;line-height:1.4;font-size:11px;-webkit-font-smoothing:antialiased}
+
+.header{padding:4px 16px;border-bottom:1px solid var(--wire);display:flex;align-items:center;justify-content:space-between;background:var(--panel);position:sticky;top:0;z-index:50;height:32px}
+.header h1{font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.header h1 .brand{color:var(--amber);font-weight:600}
+.back-link{color:var(--ink-3);text-decoration:none;font-size:10px;padding:2px 8px;border:1px solid var(--wire);border-radius:var(--radius);transition:color .12s,border-color .12s}
+.back-link:hover{color:var(--ink-2);border-color:var(--wire-mid)}
+.header-right{display:flex;gap:4px;align-items:center}
+.refresh-badge{font-size:9px;color:var(--ink-4);font-variant-numeric:tabular-nums}
+.btn{background:transparent;border:1px solid var(--wire);color:var(--ink-3);padding:2px 8px;border-radius:var(--radius);cursor:pointer;font-size:10px;transition:border-color .12s,color .12s;font-family:var(--mono);display:flex;align-items:center;gap:3px}
+.btn:hover{border-color:var(--wire-mid);color:var(--ink-2)}
+.btn.primary{background:var(--amber);color:var(--hull);border-color:var(--amber);font-weight:600}
+.btn.primary:hover{opacity:.85}
+.btn.danger{border-color:rgba(248,113,113,.2);color:rgba(248,113,113,.6)}
+.btn.danger:hover{border-color:rgba(248,113,113,.4);color:var(--led-red)}
+
+.container{max-width:1400px;margin:0 auto;padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--wire)}
+@media(max-width:900px){.container{grid-template-columns:1fr}}
+
+.section{background:var(--panel);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.section-title{font-size:9px;font-weight:600;display:flex;align-items:center;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--wire);text-transform:uppercase;letter-spacing:.8px;color:var(--ink-3)}
+.section-title .count{font-size:9px;color:var(--ink-4);font-weight:400}
+
+.summary{display:flex;gap:16px;flex-wrap:wrap;padding:6px 10px;background:var(--hull);border-radius:var(--radius);border:1px solid var(--wire)}
+.summary-item{display:flex;flex-direction:column;gap:1px}
+.summary-label{font-size:8px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.8px}
+.summary-value{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+
+.key-card{background:var(--shelf);border:1px solid var(--wire);border-radius:var(--radius);padding:8px 10px;display:flex;align-items:center;gap:10px;transition:border-color .12s}
+.key-card:hover{border-color:var(--wire-mid)}
+.key-card.disabled{opacity:.5}
+.key-status-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.key-status-dot.green{background:var(--led-green);box-shadow:0 0 4px rgba(74,222,128,.4)}
+.key-status-dot.yellow{background:var(--led-yellow)}
+.key-status-dot.red{background:var(--led-red);box-shadow:0 0 4px rgba(248,113,113,.3)}
+.key-status-dot.gray{background:var(--ink-4)}
+.key-info{flex:1;min-width:0}
+.key-name{font-size:11px;font-weight:500}
+.key-meta{font-size:9px;color:var(--ink-4);display:flex;gap:6px;margin-top:1px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.key-position{font-size:9px;padding:0px 4px;border-radius:2px;font-weight:600;border:1px solid}
+.key-position.on{background:var(--amber-glow);color:var(--amber);border-color:rgba(229,149,74,.2)}
+.key-position.off{background:rgba(248,113,113,.06);color:rgba(248,113,113,.6);border-color:rgba(248,113,113,.15)}
+.key-actions{display:flex;gap:3px;align-items:center}
+.key-toggle{width:32px;height:16px;background:var(--shelf);border:1px solid var(--wire);border-radius:8px;cursor:pointer;position:relative;transition:background .12s}
+.key-toggle.on{background:var(--led-green);border-color:var(--led-green)}
+.key-toggle .knob{position:absolute;width:12px;height:12px;background:var(--ink);border-radius:50%;top:1px;left:1px;transition:transform .12s}
+.key-toggle.on .knob{transform:translateX(16px)}
+.key-move-btn{background:none;border:1px solid var(--wire);color:var(--ink-4);width:20px;height:20px;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:color .12s,border-color .12s;font-family:var(--mono)}
+.key-move-btn:hover{color:var(--ink-2);border-color:var(--wire-mid)}
+.key-move-btn:disabled{opacity:.3;cursor:default}
+.key-test-btn{background:none;border:1px solid var(--wire);color:var(--ink-4);padding:1px 6px;border-radius:2px;cursor:pointer;font-size:9px;font-family:var(--mono);transition:color .12s}
+.key-test-btn:hover{color:var(--ink-2)}
+.key-test-result{font-size:10px;min-width:16px;text-align:center}
+.key-usage-bar{height:2px;border-radius:1px;background:var(--wire);width:60px;overflow:hidden}
+.key-usage-bar-fill{height:100%;border-radius:1px;transition:width .5s}
+
+.oauth-card{background:var(--shelf);border:1px solid var(--wire);border-radius:var(--radius);padding:10px 12px;transition:border-color .12s}
+.oauth-card:hover{border-color:var(--wire-mid)}
+.oauth-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.oauth-label{font-size:11px;font-weight:500;display:flex;align-items:center;gap:4px}
+.oauth-linked{font-size:9px;padding:0px 4px;background:var(--hull);border:1px solid var(--wire);border-radius:2px;color:var(--ink-3)}
+.oauth-sub-type{font-size:9px;color:var(--ink-4)}
+.oauth-actions{display:flex;gap:3px}
+.oauth-usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:500px){.oauth-usage-grid{grid-template-columns:1fr}}
+.usage-item{display:flex;flex-direction:column;gap:2px}
+.usage-label{font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.3px;display:flex;justify-content:space-between}
+.usage-bar{height:4px;background:var(--hull);border-radius:2px;overflow:hidden}
+.usage-fill{height:100%;border-radius:2px;transition:width .5s}
+.usage-reset{font-size:8px;color:var(--ink-4)}
+.usage-value{font-size:10px;color:var(--ink-2);font-weight:500}
+.oauth-extra{font-size:10px;color:var(--ink-3);margin-top:4px;padding:4px 8px;background:var(--hull);border-radius:2px}
+.oauth-error{font-size:10px;color:rgba(248,113,113,.8);padding:4px 0}
+.oauth-login-btn{background:var(--amber);color:var(--hull);border:none;padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:11px;font-weight:600;font-family:var(--mono);transition:opacity .12s;display:flex;align-items:center;gap:4px;width:100%;justify-content:center}
+.oauth-login-btn:hover{opacity:.85}
+.oauth-code-input{display:flex;gap:6px;align-items:center}
+.oauth-code-input input{flex:1;background:var(--shelf);border:1px solid var(--wire);border-radius:var(--radius);padding:4px 8px;color:var(--ink);font-size:11px;font-family:var(--mono)}
+.oauth-code-input input::placeholder{color:var(--ink-4)}
+.oauth-code-input input:focus{outline:none;border-color:var(--amber)}
+.edit-form{margin:6px 0;padding:8px;background:var(--hull);border-radius:var(--radius);display:flex;flex-direction:column;gap:6px}
+.edit-form label{font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.5px}
+.edit-form input,.edit-form select{width:100%;padding:3px 6px;background:var(--shelf);border:1px solid var(--wire);border-radius:2px;color:var(--ink-2);font-size:11px;font-family:var(--mono);margin-top:2px}
+.edit-form input:focus,.edit-form select:focus{outline:none;border-color:var(--amber)}
+.edit-form .btn-row{display:flex;gap:3px}
+
+details{margin-top:4px}
+details summary{font-size:9px;color:var(--ink-4);cursor:pointer;user-select:none}
+details pre{font-size:8px;color:var(--ink-3);background:var(--hull);padding:4px;border-radius:2px;margin-top:3px;overflow-x:auto;max-height:180px}
+
+.toast-container{position:fixed;top:8px;right:8px;z-index:100;display:flex;flex-direction:column;gap:4px}
+.toast{background:var(--shelf);border:1px solid var(--wire-mid);border-radius:var(--radius);padding:6px 10px;min-width:220px;max-width:320px;display:flex;align-items:center;gap:6px;transform:translateX(120%);opacity:0;transition:transform .15s,opacity .15s}
+.toast.show{transform:translateX(0);opacity:1}
+.toast.success{border-color:rgba(74,222,128,.3)}.toast.error{border-color:rgba(248,113,113,.3)}.toast.info{border-color:rgba(229,149,74,.3)}
+.toast-icon{font-size:12px;flex-shrink:0}
+.toast.success .toast-icon{color:rgba(74,222,128,.8)}.toast.error .toast-icon{color:rgba(248,113,113,.8)}.toast.info .toast-icon{color:rgba(229,149,74,.8)}
+.toast-title{font-weight:600;font-size:10px}.toast-message{font-size:9px;color:var(--ink-3)}
+.toast-close{background:none;border:none;color:var(--ink-4);cursor:pointer;font-size:12px;padding:0;width:16px;height:16px;font-family:var(--mono)}
+
+.disabled-label{font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 2s infinite}
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="header">
+  <h1><span class="brand">HERMES</span> <span style="color:var(--ink-4)">│</span> api keys</h1>
+  <div class="header-right">
+    <span class="refresh-badge" id="lastRefresh">—</span>
+    <button class="btn" onclick="refreshAll()">refresh</button>
+    <button class="btn" onclick="testAllKeys()">test all</button>
+    <a href="/" class="back-link">← sessions</a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="section" id="keysSection">
+    <div class="section-title">hermes api keys <span class="count" id="keysCount"></span></div>
+    <div class="summary" id="keysSummary"></div>
+    <div id="keysList"></div>
+  </div>
+
+  <div class="section" id="oauthSection">
+    <div class="section-title">claude oauth accounts <span class="count" id="oauthCount"></span></div>
+    <div id="oauthList"></div>
+    <div id="oauthLoginArea"></div>
+  </div>
+</div>
+
+<script>
+let keysData = [], keysUsage = {}, keysTestResults = {}, oauthAccounts = {};
+let oauthPending = null, editingAccount = null, allKeyProfiles = [];
+let refreshTimer = null;
+
+document.addEventListener('DOMContentLoaded', () => { refreshAll(); startAutoRefresh(); });
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshAll, 30000);
+}
+
+async function refreshAll() {
+  await Promise.all([loadKeys(), loadKeysUsage(), loadOAuthUsage()]);
+  render();
+  document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString();
+}
+
+async function loadKeys() {
+  try {
+    const r = await fetch('/api/keys?t=' + Date.now());
+    const d = await r.json();
+    keysData = d.keys || [];
+    allKeyProfiles = keysData.map(k => k.name);
+  } catch(e) { toast('error','Error',e.message); }
+}
+
+async function loadKeysUsage() {
+  try {
+    const r = await fetch('/api/keys/usage?t=' + Date.now());
+    keysUsage = await r.json();
+  } catch(e) { keysUsage = {}; }
+}
+
+async function loadOAuthUsage() {
+  try {
+    const r = await fetch('/api/keys/oauth/usage?t=' + Date.now());
+    oauthAccounts = await r.json();
+  } catch(e) { oauthAccounts = {}; }
+}
+
+function render() {
+  renderKeys();
+  renderOAuth();
+}
+
+function renderKeys() {
+  const enabled = keysData.filter(k => k.enabled).sort((a,b) => a.position - b.position);
+  const disabled = keysData.filter(k => !k.enabled);
+  const summary = keysUsage.summary || {};
+
+  document.getElementById('keysCount').textContent = `(${enabled.length} active / ${keysData.length} total)`;
+
+  document.getElementById('keysSummary').innerHTML = `
+    <div class="summary-item"><span class="summary-label">active</span><span class="summary-value">${summary.activeKeys||0}/${summary.totalKeys||0}</span></div>
+    <div class="summary-item"><span class="summary-label">errors</span><span class="summary-value" ${(summary.totalErrors||0)>0?'style="color:var(--led-red)"':''}>${summary.totalErrors||0}</span></div>
+    <div class="summary-item"><span class="summary-label">last rotation</span><span class="summary-value" style="font-size:10px">${summary.lastRotation ? timeAgo(summary.lastRotation) : '—'}</span></div>
+  `;
+
+  let html = enabled.map((k,i) => keyCard(k, i, true, enabled.length)).join('');
+  if (disabled.length) {
+    html += '<div class="disabled-label">disabled</div>';
+    html += disabled.map((k,i) => keyCard(k, i, false, 0)).join('');
+  }
+  document.getElementById('keysList').innerHTML = html;
+}
+
+function keyCard(key, idx, isEnabled, totalEnabled) {
+  const usage = (keysUsage.keys || {})[key.name] || {};
+  const statusColor = !isEnabled ? 'red' : usage.status === 'active' ? 'green' : usage.status === 'error' ? 'yellow' : usage.status === 'idle' ? 'green' : 'gray';
+  const lastActive = usage.lastUsed ? timeAgo(usage.lastUsed) : 'never';
+  const errCount = usage.errorCount || 0;
+  const recency = usage.lastUsed ? Math.max(0, 100 - Math.min(100, (Date.now() - usage.lastUsed) / 36000)) : 0;
+  const shortName = key.name.replace(key.provider + ':', '');
+
+  const testRes = keysTestResults[key.name];
+  let testHtml = '';
+  if (testRes === 'testing') testHtml = '<span class="key-test-result" style="color:var(--led-yellow)">⏳</span>';
+  else if (testRes?.ok && testRes?.oauth) testHtml = `<span class="key-test-result" style="color:var(--led-green)" title="${esc(testRes.note||'')}">✓ oauth</span>`;
+  else if (testRes?.ok) testHtml = `<span class="key-test-result" style="color:var(--led-green)" title="${esc(testRes.model||'')}">✓</span>`;
+  else if (testRes && !testRes.ok) testHtml = `<span class="key-test-result" style="color:var(--led-red)" title="${esc(testRes.error||'')}">✗</span>`;
+
+  return `<div class="key-card ${isEnabled?'':'disabled'}">
+    <div class="key-status-dot ${statusColor} ${statusColor==='green'&&usage.status==='active'?'pulse':''}"></div>
+    <div class="key-info">
+      <div class="key-name">${esc(shortName)}</div>
+      <div class="key-meta">
+        <span>${key.provider}</span><span>${key.mode}</span>
+        <span>${lastActive}</span>
+        ${errCount > 0 ? `<span style="color:var(--led-red)">${errCount} err</span>` : ''}
+      </div>
+    </div>
+    <div class="key-usage-bar"><div class="key-usage-bar-fill" style="width:${Math.round(recency)}%;background:var(--led-${statusColor === 'gray' ? 'yellow' : statusColor})"></div></div>
+    <span class="key-position ${isEnabled?'on':'off'}">${isEnabled ? '#'+(key.position+1) : 'OFF'}</span>
+    ${testHtml}
+    <div class="key-actions">
+      <button class="key-test-btn" onclick="testKey('${esc(key.name)}')">test</button>
+      ${isEnabled ? `<button class="key-move-btn" onclick="moveKey('${esc(key.name)}',-1)" ${idx===0?'disabled':''}>▲</button>
+      <button class="key-move-btn" onclick="moveKey('${esc(key.name)}',1)" ${idx===totalEnabled-1?'disabled':''}>▼</button>` : ''}
+      <div class="key-toggle ${isEnabled?'on':''}" onclick="toggleKey('${esc(key.name)}',${!isEnabled})"><div class="knob"></div></div>
+    </div>
+  </div>`;
+}
+
+function renderOAuth() {
+  const accounts = Object.entries(oauthAccounts).filter(([k]) => k !== 'error');
+  document.getElementById('oauthCount').textContent = `(${accounts.length})`;
+
+  let html = accounts.map(([email, data]) => oauthCard(email, data)).join('');
+  document.getElementById('oauthList').innerHTML = html;
+
+  let loginHtml = '';
+  if (oauthPending?.step === 'code') {
+    loginHtml = `<div style="margin-top:4px">
+      <div style="font-size:10px;color:var(--ink-3);margin-bottom:3px">paste authorization code:</div>
+      <div class="oauth-code-input">
+        <input type="text" id="oauthCodeInput" placeholder="code#state" onkeydown="if(event.key==='Enter')completeOAuth()">
+        <button class="btn primary" onclick="completeOAuth()">connect</button>
+        <button class="btn" onclick="oauthPending=null;render()">cancel</button>
+      </div>
+    </div>`;
+  } else if (oauthPending?.step === 'label') {
+    const keyOpts = allKeyProfiles.map(k => `<option value="${esc(k)}">${esc(k.split(':').pop())}</option>`).join('');
+    loginHtml = `<div style="margin-top:4px">
+      <div style="font-size:10px;color:var(--ink-3);margin-bottom:3px">connected — name this account:</div>
+      <div class="oauth-code-input">
+        <input type="text" id="oauthLabelInput" placeholder="email or label" onkeydown="if(event.key==='Enter')saveOAuthLabel()">
+        <button class="btn primary" onclick="saveOAuthLabel()">save</button>
+      </div>
+      <div style="margin-top:4px"><label style="font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.5px">link to key</label>
+        <select id="oauthLinkKey" style="width:100%;margin-top:2px;padding:3px 6px;background:var(--shelf);border:1px solid var(--wire);border-radius:2px;color:var(--ink-2);font-size:11px;font-family:var(--mono)">
+          <option value="">none</option>${keyOpts}
+        </select>
+      </div>
+    </div>`;
+  } else {
+    loginHtml = `<button class="oauth-login-btn" onclick="startOAuth()">${accounts.length ? '+ add account' : 'connect claude'}</button>`;
+  }
+  document.getElementById('oauthLoginArea').innerHTML = loginHtml;
+}
+
+function oauthCard(email, data) {
+  const label = data.label || email;
+  const linkedKey = data.linkedKey || '';
+  const isEditing = editingAccount?.email === email;
+
+  let editHtml = '';
+  if (isEditing) {
+    const keyOpts = allKeyProfiles.map(k => `<option value="${esc(k)}" ${k===editingAccount.linkedKey?'selected':''}>${esc(k.split(':').pop())}</option>`).join('');
+    editHtml = `<div class="edit-form">
+      <div><label>label</label><input type="text" id="editLabel" value="${esc(label)}"></div>
+      <div><label>link to key</label><select id="editLink"><option value="">none</option>${keyOpts}</select></div>
+      <div class="btn-row"><button class="btn primary" onclick="saveEdit('${esc(email)}')">save</button><button class="btn" onclick="editingAccount=null;render()">cancel</button></div>
+    </div>`;
+  }
+
+  let usageHtml = '';
+  if (data.error) {
+    usageHtml = `<div class="oauth-error">⚠ ${esc(data.message || data.error)}</div>`;
+  } else if (data.usage) {
+    const u = data.usage;
+    usageHtml = '<div class="oauth-usage-grid">';
+    const metrics = [
+      ['five_hour', 'session (5h)'],
+      ['seven_day', 'weekly (7d)'],
+      ['seven_day_sonnet', 'sonnet (7d)'],
+      ['seven_day_opus', 'opus (7d)'],
+      ['seven_day_oauth_apps', 'oauth apps (7d)'],
+      ['seven_day_cowork', 'cowork (7d)'],
+      ['iguana_necktie', 'iguana'],
+    ];
+    for (const [key, name] of metrics) {
+      const m = u[key];
+      if (!m || m.utilization === undefined) continue;
+      const pct = m.utilization || 0;
+      usageHtml += `<div class="usage-item">
+        <div class="usage-label"><span>${name}</span><span>${pct.toFixed(1)}%</span></div>
+        <div class="usage-bar"><div class="usage-fill" style="width:${Math.min(pct,100)}%;background:${usageColor(pct)}"></div></div>
+        ${m.resets_at ? `<div class="usage-reset">resets ${formatReset(m.resets_at)}</div>` : ''}
+      </div>`;
+    }
+    usageHtml += '</div>';
+
+    if (u.extra_usage) {
+      if (u.extra_usage.is_enabled) {
+        const used = u.extra_usage.used_credits || 0;
+        const limit = u.extra_usage.monthly_limit || 0;
+        const pct = limit > 0 ? Math.min(100, (used/limit)*100) : 0;
+        usageHtml += `<div class="oauth-extra">extra: $${used.toFixed(2)} / $${limit} (${pct.toFixed(1)}%)
+          <div class="usage-bar" style="margin-top:3px"><div class="usage-fill" style="width:${pct}%;background:${usageColor(pct)}"></div></div>
+        </div>`;
+      } else {
+        usageHtml += `<div class="oauth-extra" style="opacity:.5">extra usage: disabled</div>`;
+      }
+    }
+
+    usageHtml += `<details><summary>raw json</summary><pre>${esc(JSON.stringify(u,null,2))}</pre></details>`;
+  }
+
+  return `<div class="oauth-card">
+    <div class="oauth-header">
+      <div class="oauth-label">● ${esc(label)}${linkedKey ? ` <span class="oauth-linked">→ ${esc(linkedKey.split(':').pop())}</span>` : ''}${data.subscriptionType ? ` <span class="oauth-sub-type">(${esc(data.subscriptionType)})</span>` : ''}</div>
+      <div class="oauth-actions">
+        <button class="btn" onclick="editingAccount={email:'${esc(email)}',label:'${esc(label)}',linkedKey:'${esc(linkedKey)}'};render()" style="font-size:9px;padding:1px 6px">edit</button>
+        <button class="btn danger" onclick="removeOAuth('${esc(email)}')" style="font-size:9px;padding:1px 6px">rm</button>
+      </div>
+    </div>
+    ${editHtml}
+    ${usageHtml}
+  </div>`;
+}
+
+async function toggleKey(name, enabled) {
+  await fetch('/api/keys/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profileName:name,enabled})});
+  await loadKeys(); render();
+}
+
+async function moveKey(name, dir) {
+  const key = keysData.find(k => k.name === name);
+  if (!key) return;
+  const ordered = keysData.filter(k => k.enabled && k.provider === key.provider).sort((a,b) => a.position - b.position);
+  const idx = ordered.findIndex(k => k.name === name);
+  const ni = idx + dir;
+  if (ni < 0 || ni >= ordered.length) return;
+  [ordered[idx], ordered[ni]] = [ordered[ni], ordered[idx]];
+  await fetch('/api/keys/reorder', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:key.provider,order:ordered.map(k=>k.name)})});
+  await loadKeys(); render();
+}
+
+async function testKey(name) {
+  keysTestResults[name] = 'testing'; render();
+  try {
+    const r = await fetch('/api/keys/test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profileName:name})});
+    const d = await r.json();
+    keysTestResults[name] = d[name] || {ok:false,error:'Unknown'};
+  } catch(e) { keysTestResults[name] = {ok:false,error:e.message}; }
+  render();
+}
+
+async function testAllKeys() {
+  keysData.forEach(k => { keysTestResults[k.name] = 'testing'; }); render();
+  try {
+    const r = await fetch('/api/keys/test-all', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    Object.assign(keysTestResults, await r.json());
+  } catch(e) { toast('error','Error',e.message); }
+  render();
+}
+
+async function startOAuth() {
+  try {
+    const r = await fetch('/api/keys/oauth/start', {method:'POST'});
+    const d = await r.json();
+    if (d.error) { toast('error','OAuth Error',d.error); return; }
+    oauthPending = {...d, step:'code'};
+    window.open(d.authUrl, '_blank');
+    render();
+  } catch(e) { toast('error','Error',e.message); }
+}
+
+async function completeOAuth() {
+  const input = document.getElementById('oauthCodeInput');
+  if (!input?.value.trim() || !oauthPending) return;
+  try {
+    const r = await fetch('/api/keys/oauth/complete', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:oauthPending.sessionId,code:input.value.trim()})});
+    const d = await r.json();
+    if (d.error) { toast('error','OAuth Error',d.error); return; }
+    oauthPending = {step:'label',accountId:d.email};
+    await loadOAuthUsage(); render();
+  } catch(e) { toast('error','Error',e.message); }
+}
+
+async function saveOAuthLabel() {
+  const label = document.getElementById('oauthLabelInput')?.value.trim() || oauthPending.accountId;
+  const linkedKey = document.getElementById('oauthLinkKey')?.value || '';
+  try {
+    await fetch('/api/keys/oauth/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId:oauthPending.accountId,label,linkedKey})});
+    oauthPending = null;
+    toast('success','Saved',`${label}`);
+    await loadOAuthUsage(); render();
+  } catch(e) { toast('error','Error',e.message); }
+}
+
+async function saveEdit(email) {
+  const label = document.getElementById('editLabel')?.value.trim() || email;
+  const linkedKey = document.getElementById('editLink')?.value || '';
+  try {
+    await fetch('/api/keys/oauth/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId:email,label,linkedKey})});
+    editingAccount = null;
+    toast('success','Saved','account updated');
+    await loadOAuthUsage(); render();
+  } catch(e) { toast('error','Error',e.message); }
+}
+
+async function removeOAuth(email) {
+  if (!confirm(`Remove ${email}?`)) return;
+  await fetch('/api/keys/oauth/remove', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+  delete oauthAccounts[email];
+  render();
+}
+
+function timeAgo(ts) {
+  if (!ts) return 'never';
+  const d = Date.now() - ts;
+  if (d < 60000) return Math.floor(d/1000)+'s ago';
+  if (d < 3600000) return Math.floor(d/60000)+'m ago';
+  if (d < 86400000) return Math.floor(d/3600000)+'h ago';
+  return Math.floor(d/86400000)+'d ago';
+}
+
+function usageColor(pct) {
+  if (pct < 50) return 'var(--led-green)';
+  if (pct < 80) return 'var(--led-yellow)';
+  return 'var(--led-red)';
+}
+
+function formatReset(iso) {
+  if (!iso) return '';
+  const d = new Date(iso) - Date.now();
+  if (d <= 0) return 'resetting…';
+  const h = Math.floor(d/3600000), m = Math.floor((d%3600000)/60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function esc(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function toast(type, title, msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<div class="toast-icon">${{success:'✓',error:'✗',info:'●'}[type]||'●'}</div><div><div class="toast-title">${title}</div><div class="toast-message">${msg}</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  c.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 16);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, 5000);
+}
+</script>
+</body>
+</html>
