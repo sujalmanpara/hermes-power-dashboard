@@ -81,6 +81,15 @@ For each session/mission:
 - Transcript drilldown
 - Copy/export controls
 
+### 🌓 Dark + light themes
+
+A polished theme toggle is built into the header and settings panel:
+
+- Dark command-center mode by default
+- Clean light observability deck for daytime use
+- Remembers your choice in `localStorage`
+- Respects system light/dark preference on first load
+
 ### 📱 Responsive UI
 
 Designed to feel good on desktop, tablet, and phone:
@@ -89,7 +98,7 @@ Designed to feel good on desktop, tablet, and phone:
 - Tablet/mobile: full-screen chat surface
 - Safe-area-aware composer
 - Touch-friendly controls
-- Dark, high-contrast operator aesthetic
+- Dark and light high-contrast operator aesthetics
 
 ---
 
