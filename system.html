@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Load — Hermes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --hull:#0a0c10;--panel:#0e1117;--shelf:#141820;--rack:#1a1f2a;
+  --wire:rgba(255,255,255,.06);--wire-mid:rgba(255,255,255,.09);
+  --ink:#e2e4e9;--ink-2:#9ca3af;--ink-3:#6b7280;--ink-4:#3d4452;
+  --amber:#e5954a;--amber-glow:rgba(229,149,74,.08);
+  --led-green:#4ade80;--led-yellow:#facc15;--led-red:#f87171;
+  --mono:'JetBrains Mono',monospace;
+  --radius:3px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--mono);background:var(--hull);color:var(--ink);min-height:100dvh;font-size:11px;-webkit-font-smoothing:antialiased}
+a{color:var(--amber);text-decoration:none}
+a:hover{text-decoration:underline}
+
+.header{padding:4px 16px;border-bottom:1px solid var(--wire);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--panel);z-index:50;height:32px}
+.header h1{font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.header h1 .brand{color:var(--amber);font-weight:600}
+.header nav{display:flex;gap:10px;font-size:10px;align-items:center}
+.status-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.dot-ok{background:var(--led-green);box-shadow:0 0 4px rgba(74,222,128,.4);animation:pulse 2s infinite}
+.dot-warn{background:var(--led-yellow)}
+.dot-err{background:var(--led-red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1px;padding:0;background:var(--wire)}
+.card{background:var(--panel);padding:12px 14px}
+.card-title{font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;font-weight:600}
+.metric{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--wire)}
+.metric:last-child{border-bottom:none}
+.metric-label{font-size:10px;color:var(--ink-3)}
+.metric-value{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+
+.bar-container{height:3px;background:var(--rack);border-radius:1px;overflow:hidden;margin-top:3px;width:100%}
+.bar-fill{height:100%;border-radius:1px;transition:width .3s}
+.bar-green{background:var(--led-green)}
+.bar-yellow{background:var(--led-yellow)}
+.bar-red{background:var(--led-red)}
+
+.wide{grid-column:1/-1}
+.process-table{width:100%;font-size:10px;border-collapse:collapse}
+.process-table th{text-align:left;color:var(--ink-4);font-weight:600;padding:3px 6px;border-bottom:1px solid var(--wire);text-transform:uppercase;letter-spacing:.5px;font-size:9px}
+.process-table td{padding:3px 6px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.process-table tr:hover td{color:var(--ink)}
+
+.footer{padding:4px 16px;font-size:9px;color:var(--ink-4);border-top:1px solid var(--wire);display:flex;justify-content:space-between;background:var(--panel)}
+.refresh-indicator{font-size:9px;color:var(--ink-4);font-variant-numeric:tabular-nums}
+
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span class="status-dot dot-ok" id="statusDot"></span> <span class="brand">HERMES</span> <span style="color:var(--ink-4)">│</span> system</h1>
+  <nav>
+    <a href="/">← sessions</a>
+    <span class="refresh-indicator" id="lastUpdate"></span>
+  </nav>
+</div>
+
+<div class="grid" id="dashboard">
+  <div class="card" id="cpuCard">
+    <div class="card-title">cpu</div>
+    <div id="cpuMetrics"></div>
+  </div>
+  <div class="card" id="memCard">
+    <div class="card-title">memory</div>
+    <div id="memMetrics"></div>
+  </div>
+  <div class="card" id="diskCard">
+    <div class="card-title">disk</div>
+    <div id="diskMetrics"></div>
+  </div>
+  <div class="card" id="networkCard">
+    <div class="card-title">network</div>
+    <div id="networkMetrics"></div>
+  </div>
+  <div class="card" id="systemCard">
+    <div class="card-title">system</div>
+    <div id="systemMetrics"></div>
+  </div>
+  <div class="card" id="servicesCard">
+    <div class="card-title">services</div>
+    <div id="servicesMetrics"></div>
+  </div>
+  <div class="card wide" id="processCard">
+    <div class="card-title">top processes (cpu)</div>
+    <table class="process-table">
+      <thead><tr><th>pid</th><th>user</th><th>cpu%</th><th>mem%</th><th>rss</th><th>command</th></tr></thead>
+      <tbody id="processTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  <span id="footerUpdate"></span>
+  <span>refreshes every 5s</span>
+</div>
+
+<script>
+function barColor(pct) {
+  if (pct > 85) return 'bar-red';
+  if (pct > 60) return 'bar-yellow';
+  return 'bar-green';
+}
+
+function dotClass(pct) {
+  if (pct > 85) return 'dot-err';
+  if (pct > 60) return 'dot-warn';
+  return 'dot-ok';
+}
+
+function bar(pct) {
+  return `<div class="bar-container"><div class="bar-fill ${barColor(pct)}" style="width:${pct}%"></div></div>`;
+}
+
+function metric(label, value, pct) {
+  return `<div class="metric">
+    <span class="metric-label">${label}</span>
+    <span class="metric-value">${value}</span>
+  </div>${pct !== undefined ? bar(pct) : ''}`;
+}
+
+async function load() {
+  try {
+    const r = await fetch('/data/system.json?t=' + Date.now());
+    const d = await r.json();
+    if (d.error) return;
+
+    const cpu = d.cpu || {};
+    document.getElementById('cpuMetrics').innerHTML =
+      metric('usage', cpu.usage_pct + '%', cpu.usage_pct) +
+      metric('load 1m/5m/15m', cpu.load_avg || '—') +
+      metric('cores', cpu.cores || '—') +
+      metric('model', cpu.model || '—');
+
+    const mem = d.memory || {};
+    document.getElementById('memMetrics').innerHTML =
+      metric('used / total', `${mem.used} / ${mem.total}`, mem.used_pct) +
+      metric('available', mem.available || '—') +
+      metric('swap', `${mem.swap_used || '0'} / ${mem.swap_total || '0'}`, mem.swap_pct || 0);
+
+    const disks = d.disks || [];
+    document.getElementById('diskMetrics').innerHTML = disks.map(dk =>
+      metric(`${dk.mount} (${dk.fs})`, `${dk.used} / ${dk.size}`, dk.used_pct)
+    ).join('');
+
+    const net = d.network || {};
+    document.getElementById('networkMetrics').innerHTML =
+      metric('rx', net.rx || '—') +
+      metric('tx', net.tx || '—') +
+      metric('connections', net.connections || '—');
+
+    const sys = d.system || {};
+    document.getElementById('systemMetrics').innerHTML =
+      metric('hostname', sys.hostname || '—') +
+      metric('uptime', sys.uptime || '—') +
+      metric('kernel', sys.kernel || '—') +
+      metric('processes', sys.processes || '—');
+
+    const svcs = d.services || [];
+    document.getElementById('servicesMetrics').innerHTML = svcs.map(s =>
+      `<div class="metric">
+        <span class="metric-label"><span class="status-dot ${s.active ? 'dot-ok' : 'dot-err'}" style="margin-right:4px"></span>${s.name}</span>
+        <span class="metric-value" style="color:${s.active ? 'var(--led-green)' : 'var(--led-red)'}">${s.status}</span>
+      </div>`
+    ).join('');
+
+    const procs = d.processes || [];
+    document.getElementById('processTable').innerHTML = procs.map(p =>
+      `<tr><td>${p.pid}</td><td>${p.user}</td><td>${p.cpu}</td><td>${p.mem}</td><td>${p.rss}</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cmd}</td></tr>`
+    ).join('');
+
+    const maxPct = Math.max(cpu.usage_pct || 0, mem.used_pct || 0);
+    document.getElementById('statusDot').className = 'status-dot ' + dotClass(maxPct);
+
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    document.getElementById('footerUpdate').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+setInterval(load, 5000);
+load();
+</script>
+</body>
+</html>
