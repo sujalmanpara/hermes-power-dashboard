@@ -1,0 +1,28 @@
+{
+  "name": "hermes-power-dashboard",
+  "version": "1.0.0",
+  "description": "A cinematic, real-time mission-control dashboard for Hermes Agent sessions, workers, schedules, tools, tokens, and system health.",
+  "main": "serve.py",
+  "scripts": {
+    "start": "python3 serve.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sujalmanpara/hermes-power-dashboard.git"
+  },
+  "keywords": [
+    "hermes-agent",
+    "ai-agent",
+    "dashboard",
+    "observability",
+    "agentic-systems",
+    "self-hosted",
+    "automation"
+  ],
+  "author": "Sujal Manpara",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sujalmanpara/hermes-power-dashboard/issues"
+  },
+  "homepage": "https://github.com/sujalmanpara/hermes-power-dashboard#readme"
+}
