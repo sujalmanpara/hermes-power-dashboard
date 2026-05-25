@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Cron Jobs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  /* ── Surfaces: server-rack dark ── */
+  --hull:#0a0c10;
+  --panel:#0e1117;
+  --shelf:#141820;
+  --rack:#1a1f2a;
+  /* ── Borders: subtle wire-frame ── */
+  --wire:rgba(255,255,255,.06);
+  --wire-mid:rgba(255,255,255,.09);
+  --wire-bright:rgba(255,255,255,.14);
+  --wire-focus:rgba(229,149,74,.4);
+  /* ── Text: phosphor on dark ── */
+  --ink:#e2e4e9;
+  --ink-2:#9ca3af;
+  --ink-3:#6b7280;
+  --ink-4:#3d4452;
+  /* ── Signal: hardware LEDs ── */
+  --amber:#e5954a;
+  --amber-dim:rgba(229,149,74,.15);
+  --amber-glow:rgba(229,149,74,.08);
+  --led-green:#4ade80;
+  --led-yellow:#facc15;
+  --led-red:#f87171;
+  --led-blue:#60a5fa;
+  /* ── Type ── */
+  --mono:'JetBrains Mono',monospace;
+  --sans:'JetBrains Mono',-apple-system,sans-serif;
+  /* ── Shape ── */
+  --radius:3px;
+  --space:6px;
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+}
+
+body{
+  font-family:var(--mono);
+  background:var(--hull);
+  color:var(--ink);
+  height:100dvh;
+  line-height:1.4;
+  font-size:12px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Header: thin status bar ── */
+.header{
+  padding:4px 12px;
+  border-bottom:1px solid var(--wire);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--panel);
+  flex-shrink:0;
+  height:32px;
+}
+
+.header h1{
+  font-size:11px;
+  font-weight:500;
+  display:flex;align-items:center;gap:6px;
+  color:var(--ink-2);
+  letter-spacing:.3px;
+}
+
+.header h1 .brand{color:var(--amber);font-weight:600}
+
+.live-dot{
+  width:5px;height:5px;
+  background:var(--led-green);
+  border-radius:50%;
+  box-shadow:0 0 4px rgba(74,222,128,.5);
+  animation:pulse 2s infinite;
+}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.controls{display:flex;align-items:center;gap:4px}
+
+.btn{
+  background:transparent;
+  border:1px solid var(--wire);
+  color:var(--ink-3);
+  padding:2px 8px;
+  border-radius:var(--radius);
+  cursor:pointer;
+  font-size:10px;
+  font-family:var(--mono);
+  transition:border-color .12s,color .12s;
+  display:flex;align-items:center;gap:4px;
+  line-height:1.6;
+  text-decoration:none;
+}
+.btn:hover{border-color:var(--wire-mid);color:var(--ink-2)}
+.btn.primary{background:var(--amber);color:var(--hull);border-color:var(--amber);font-weight:600}
+.btn.primary:hover{opacity:.85}
+
+/* ── Stats Bar ── */
+.stats-dashboard{
+  padding:3px 12px;
+  border-bottom:1px solid var(--wire);
+  background:var(--hull);
+  display:flex;align-items:center;gap:14px;
+  flex-shrink:0;
+  overflow-x:auto;
+  height:26px;
+}
+
+.stat{
+  display:flex;align-items:baseline;gap:3px;
+  white-space:nowrap;
+}
+.stat-value{
+  font-size:11px;font-weight:600;
+  color:var(--amber);
+  font-variant-numeric:tabular-nums;
+}
+.stat-label{
+  font-size:9px;color:var(--ink-4);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+
+/* ── Toolbar ── */
+.toolbar{
+  padding:4px 12px;
+  border-bottom:1px solid var(--wire);
+  display:flex;gap:6px;align-items:center;
+  flex-shrink:0;
+  height:30px;
+}
+
+.search-box{flex:1;min-width:120px;position:relative}
+.search-input{
+  width:100%;padding:3px 6px 3px 22px;
+  background:var(--shelf);
+  border:1px solid var(--wire);
+  border-radius:var(--radius);
+  color:var(--ink);
+  font-size:11px;font-family:var(--mono);
+}
+.search-input::placeholder{color:var(--ink-4)}
+.search-input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 1px var(--wire-focus)}
+.search-icon{
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  color:var(--ink-4);font-size:11px;pointer-events:none;
+}
+
+.view-controls{display:flex;gap:2px;align-items:center}
+.view-toggle{
+  background:transparent;border:1px solid var(--wire);
+  padding:2px 6px;border-radius:var(--radius);cursor:pointer;
+  color:var(--ink-4);font-size:11px;font-family:var(--mono);
+  transition:all .12s;
+}
+.view-toggle:hover{border-color:var(--wire-mid);color:var(--ink-3)}
+.view-toggle.active{background:var(--amber-dim);color:var(--amber);border-color:rgba(229,149,74,.3)}
+
+/* ── Filter Bar ── */
+.filter-bar{
+  padding:2px 12px;
+  border-bottom:1px solid var(--wire);
+  display:flex;gap:2px;flex-wrap:wrap;
+  background:var(--hull);
+  flex-shrink:0;
+  height:24px;
+  align-items:center;
+}
+.filter-btn{
+  background:transparent;border:1px solid transparent;
+  color:var(--ink-4);padding:1px 6px;
+  border-radius:var(--radius);cursor:pointer;
+  font-size:10px;font-family:var(--mono);
+  transition:all .12s;
+}
+.filter-btn:hover{color:var(--ink-3);border-color:var(--wire)}
+.filter-btn.active{
+  background:var(--amber-glow);color:var(--amber);
+  border-color:rgba(229,149,74,.2);
+}
+
+/* ── Main Layout ── */
+.main-content{
+  display:flex;flex:1;overflow:hidden;
+}
+
+.jobs-panel{flex:1;overflow-y:auto;padding:6px 8px}
+
+/* ── Job Cards ── */
+.jobs-grid{display:grid;gap:1px;background:var(--wire)}
+.grid-view{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}
+.list-view{grid-template-columns:1fr}
+
+.job-card{
+  background:var(--panel);
+  border:none;
+  padding:10px 12px;
+  cursor:pointer;
+  transition:background .12s;
+  position:relative;
+}
+.job-card:hover{background:var(--shelf)}
+.job-card.expanded{background:var(--shelf)}
+
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.card-title{
+  font-size:12px;font-weight:600;
+  display:flex;align-items:center;gap:6px;
+  flex:1;min-width:0;
+}
+.card-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+
+.status-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.status-dot.status-enabled{background:var(--led-green);box-shadow:0 0 4px rgba(74,222,128,.4)}
+.status-dot.status-disabled{background:var(--ink-4)}
+
+.card-badges{display:flex;gap:3px;flex-wrap:wrap;align-items:flex-start;margin-left:8px}
+
+.badge{
+  font-size:9px;padding:0px 4px;border-radius:2px;
+  font-weight:500;border:1px solid;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  white-space:nowrap;
+}
+.badge-main{color:rgba(74,222,128,.7);border-color:rgba(74,222,128,.2);background:rgba(74,222,128,.05)}
+.badge-isolated{color:rgba(96,165,250,.7);border-color:rgba(96,165,250,.2);background:rgba(96,165,250,.05)}
+.badge-agentTurn{color:rgba(229,149,74,.7);border-color:rgba(229,149,74,.2);background:rgba(229,149,74,.05)}
+.badge-systemEvent{color:var(--ink-3);border-color:var(--wire);background:transparent}
+
+.model-pill{
+  font-size:9px;padding:0px 4px;
+  border:1px solid var(--wire);
+  border-radius:2px;color:var(--ink-4);
+  white-space:nowrap;
+}
+
+.card-schedule{
+  font-size:11px;color:var(--ink-2);
+  margin-bottom:3px;
+  font-weight:500;
+}
+
+.card-meta{
+  display:flex;flex-wrap:wrap;gap:8px;
+  margin-bottom:6px;font-size:10px;color:var(--ink-4);
+  font-variant-numeric:tabular-nums;
+}
+
+.card-actions{
+  display:flex;gap:4px;margin-top:6px;
+}
+
+.toggle-switch{
+  position:relative;width:32px;height:16px;
+  background:var(--shelf);border:1px solid var(--wire);
+  border-radius:8px;cursor:pointer;transition:background .12s;
+  flex-shrink:0;
+}
+.toggle-switch.on{background:var(--led-green);border-color:var(--led-green)}
+.toggle-knob{
+  position:absolute;width:12px;height:12px;
+  background:var(--ink);border-radius:50%;top:1px;left:1px;
+  transition:transform .12s;
+}
+.toggle-switch.on .toggle-knob{transform:translateX(16px)}
+
+.run-btn{
+  padding:2px 8px;
+  background:var(--amber);color:var(--hull);
+  border:1px solid var(--amber);
+  border-radius:var(--radius);cursor:pointer;
+  font-size:10px;font-family:var(--mono);
+  font-weight:600;
+  transition:opacity .12s;
+}
+.run-btn:hover{opacity:.85}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.status-info{
+  background:var(--shelf);
+  border:1px solid var(--wire);
+  border-radius:var(--radius);
+  padding:4px 6px;margin-top:4px;
+  font-size:10px;
+}
+
+.status-row{
+  display:flex;justify-content:space-between;
+  margin-bottom:2px;
+}
+.status-row:last-child{margin-bottom:0}
+
+.status-label{color:var(--ink-4)}
+.status-value{color:var(--ink-2)}
+.status-value.ok{color:var(--led-green)}
+.status-value.error{color:var(--led-red)}
+
+.payload-section{
+  margin-top:6px;
+  border-top:1px solid var(--wire);
+  padding-top:4px;
+}
+
+.payload-toggle{
+  font-size:9px;color:var(--ink-4);
+  cursor:pointer;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  user-select:none;
+}
+.payload-toggle:hover{color:var(--ink-3)}
+
+.payload-content{
+  display:none;
+  margin-top:4px;
+  padding:4px 6px;
+  background:var(--hull);
+  border:1px solid var(--wire);
+  border-radius:var(--radius);
+  font-size:10px;
+  color:var(--ink-3);
+  white-space:pre-wrap;
+  word-break:break-word;
+  max-height:100px;
+  overflow-y:auto;
+}
+.payload-content.expanded{display:block}
+
+/* ── Detail Panel ── */
+.detail-panel{
+  position:fixed;top:0;right:0;
+  width:520px;height:100dvh;
+  background:var(--panel);
+  border-left:1px solid var(--wire-mid);
+  display:flex;flex-direction:column;
+  z-index:60;
+  transition:all .15s ease;
+}
+.detail-panel.detached{
+  width:100vw;left:0;right:0;
+  border-left:none;
+  z-index:100;
+}
+
+.panel-header{
+  padding:6px 12px;
+  border-bottom:1px solid var(--wire);
+  display:flex;justify-content:space-between;align-items:center;
+  flex-shrink:0;
+  height:32px;
+  background:var(--shelf);
+}
+.panel-title{
+  font-size:11px;font-weight:600;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--ink);
+}
+.panel-controls{display:flex;gap:2px;align-items:center}
+
+.panel-meta{
+  padding:4px 12px;font-size:10px;color:var(--ink-4);
+  border-bottom:1px solid var(--wire);
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  background:var(--hull);flex-shrink:0;
+  font-variant-numeric:tabular-nums;
+}
+
+.history-container{flex:1;overflow-y:auto;padding:0 12px;padding-bottom:6px}
+
+.run-entry{
+  border-left:2px solid var(--wire);
+  margin:8px 0;padding-left:10px;
+}
+.run-entry.status-ok{border-color:rgba(74,222,128,.4)}
+.run-entry.status-error{border-color:rgba(248,113,113,.4)}
+
+.run-header{
+  display:flex;align-items:center;margin-bottom:3px;gap:6px;
+}
+.run-status{
+  font-size:9px;font-weight:600;text-transform:uppercase;
+  padding:0px 4px;border-radius:2px;border:1px solid;
+  letter-spacing:.5px;
+}
+.status-ok{background:rgba(74,222,128,.08);color:rgba(74,222,128,.7);border-color:rgba(74,222,128,.15)}
+.status-error{background:rgba(248,113,113,.08);color:rgba(248,113,113,.7);border-color:rgba(248,113,113,.15)}
+
+.run-timestamp{font-size:9px;color:var(--ink-4);margin-left:auto;font-variant-numeric:tabular-nums}
+.run-summary{
+  font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-word;
+  color:var(--ink-2);margin:3px 0;
+}
+.run-meta{
+  display:flex;gap:6px;margin-top:3px;font-size:9px;
+  color:var(--ink-4);font-variant-numeric:tabular-nums;
+}
+
+/* ── Loading ── */
+.loading-spinner{text-align:center;padding:32px;color:var(--ink-4);font-size:11px}
+.spinner-dots{display:inline-flex;gap:3px;margin-left:6px}
+.spinner-dot{
+  width:3px;height:3px;background:var(--amber);border-radius:50%;
+  animation:bounce 1.4s infinite;
+}
+.spinner-dot:nth-child(2){animation-delay:.16s}
+.spinner-dot:nth-child(3){animation-delay:.32s}
+@keyframes bounce{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+/* ── Empty State ── */
+.empty-state{
+  text-align:center;padding:32px 12px;color:var(--ink-4);
+}
+.empty-state p{margin-bottom:8px;font-size:11px}
+
+/* ── Toast ── */
+.toast-container{
+  position:fixed;top:8px;right:8px;z-index:50;
+  display:flex;flex-direction:column;gap:4px;
+}
+.toast{
+  background:var(--shelf);border:1px solid var(--wire-mid);
+  border-radius:var(--radius);padding:6px 10px;
+  min-width:220px;max-width:320px;
+  display:flex;align-items:center;gap:6px;
+  transform:translateX(120%);opacity:0;
+  transition:transform .15s,opacity .15s;
+}
+.toast.show{transform:translateX(0);opacity:1}
+.toast.success{border-color:rgba(74,222,128,.3)}
+.toast.error{border-color:rgba(248,113,113,.3)}
+.toast.info{border-color:rgba(229,149,74,.3)}
+.toast-icon{font-size:12px;flex-shrink:0}
+.toast.success .toast-icon{color:rgba(74,222,128,.8)}
+.toast.error .toast-icon{color:rgba(248,113,113,.8)}
+.toast.info .toast-icon{color:rgba(229,149,74,.8)}
+.toast-content{flex:1}
+.toast-title{font-weight:600;font-size:10px;margin-bottom:1px}
+.toast-message{font-size:9px;color:var(--ink-3)}
+.toast-close{
+  background:none;border:none;color:var(--ink-4);cursor:pointer;
+  font-size:12px;padding:0;width:16px;height:16px;font-family:var(--mono);
+}
+
+/* ── Mobile ── */
+@media(max-width:768px){
+  .detail-panel{width:100vw}
+  .jobs-grid{grid-template-columns:1fr!important}
+  .toolbar{flex-wrap:wrap;height:auto}
+  .search-box{min-width:0;flex-basis:100%}
+  .stats-dashboard{flex-wrap:wrap;gap:6px;height:auto;padding:4px 12px}
+  .controls{flex-wrap:wrap}
+}
+
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="header">
+  <h1>
+    <div class="live-dot"></div>
+    <span class="brand">HERMES</span>
+    <span style="color:var(--ink-4)">│</span>
+    <span>cron jobs</span>
+  </h1>
+  <div class="controls">
+    <a href="/" class="btn" title="Back to Sessions">sessions</a>
+    <a href="/keys" class="btn" title="API Keys Monitor">keys</a>
+    <a href="/system.html" class="btn">sys</a>
+    <button class="btn" onclick="refreshData()">↻</button>
+  </div>
+</div>
+
+<div class="stats-dashboard">
+  <div class="stat">
+    <div class="stat-value" id="totalJobs">0</div>
+    <div class="stat-label">total</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="activeJobs" style="color:var(--led-green)">0</div>
+    <div class="stat-label">active</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="disabledJobs" style="color:var(--ink-3)">0</div>
+    <div class="stat-label">disabled</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="lastRunTime" style="color:var(--ink-2)">—</div>
+    <div class="stat-label">last run</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="search-box">
+    <div class="search-icon">⌕</div>
+    <input type="text" class="search-input" placeholder="search jobs… ( / )"
+           id="searchInput" onkeyup="handleSearch()">
+  </div>
+  <div class="view-controls">
+    <button class="view-toggle active" id="gridView" onclick="setViewMode('grid')">⊞</button>
+    <button class="view-toggle" id="listView" onclick="setViewMode('list')">≡</button>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="setFilter('all', this)">all</button>
+  <button class="filter-btn" onclick="setFilter('active', this)">● active</button>
+  <button class="filter-btn" onclick="setFilter('disabled', this)">○ disabled</button>
+  <button class="filter-btn" onclick="setFilter('errored', this)">✗ errored</button>
+</div>
+
+<div class="main-content">
+  <div class="jobs-panel">
+    <div class="jobs-grid grid-view" id="jobsGrid">
+      <div class="loading-spinner">
+        loading cron jobs<span class="spinner-dots">
+          <span class="spinner-dot"></span>
+          <span class="spinner-dot"></span>
+          <span class="spinner-dot"></span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="detailPanel" style="display: none;">
+    <div class="panel-header">
+      <div class="panel-title" id="panelTitle">select a job</div>
+      <div class="panel-controls">
+        <button class="btn" onclick="toggleDetachPanel()" id="detachBtn" title="Fullscreen">⧉</button>
+        <button class="btn" onclick="closeDetailPanel()">×</button>
+      </div>
+    </div>
+    <div class="panel-meta" id="panelMeta"></div>
+    <div class="history-container" id="historyContainer">
+      <div class="loading-spinner">loading run history...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Global state
+let allJobs = [];
+let filteredJobs = [];
+let currentFilter = 'all';
+let currentViewMode = 'grid';
+let searchTerm = '';
+let selectedJob = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  refreshData();
+  setupKeyboardShortcuts();
+  setInterval(refreshData, 30000); // Auto-refresh every 30 seconds
+});
+
+async function refreshData() {
+  try {
+    const response = await fetch('/data/cron-jobs.json');
+    const data = await response.json();
+    
+    if (data.error) {
+      showToast('error', 'Error', data.error);
+      return;
+    }
+    
+    allJobs = data.jobs || [];
+    updateStats();
+    applyFiltersAndSort();
+  } catch (error) {
+    showToast('error', 'Network Error', error.message);
+  }
+}
+
+function updateStats() {
+  const total = allJobs.length;
+  const active = allJobs.filter(j => j.enabled).length;
+  const disabled = total - active;
+  
+  // Find most recent run
+  const lastRuns = allJobs.map(j => j.state?.lastRunAtMs).filter(t => t).sort((a, b) => b - a);
+  const lastRunTime = lastRuns[0];
+  
+  document.getElementById('totalJobs').textContent = total;
+  document.getElementById('activeJobs').textContent = active;
+  document.getElementById('disabledJobs').textContent = disabled;
+  document.getElementById('lastRunTime').textContent = lastRunTime ? formatTime(lastRunTime) + ' ago' : '—';
+}
+
+function setFilter(filter, button) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  button.classList.add('active');
+  applyFiltersAndSort();
+}
+
+function handleSearch() {
+  searchTerm = document.getElementById('searchInput').value.toLowerCase();
+  applyFiltersAndSort();
+}
+
+function setViewMode(mode) {
+  currentViewMode = mode;
+  document.querySelectorAll('.view-toggle').forEach(b => b.classList.remove('active'));
+  document.getElementById(mode + 'View').classList.add('active');
+  const grid = document.getElementById('jobsGrid');
+  grid.className = `jobs-grid ${mode}-view`;
+  renderJobs();
+}
+
+function applyFiltersAndSort() {
+  let jobs = [...allJobs];
+  
+  // Apply search filter
+  if (searchTerm) {
+    jobs = jobs.filter(j =>
+      j.name.toLowerCase().includes(searchTerm) ||
+      j.id.toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  // Apply category filter
+  if (currentFilter !== 'all') {
+    jobs = jobs.filter(j => {
+      switch (currentFilter) {
+        case 'active': return j.enabled;
+        case 'disabled': return !j.enabled;
+        case 'errored': return j.state?.lastStatus === 'error';
+        default: return true;
+      }
+    });
+  }
+  
+  // Sort by last run time, enabled first
+  jobs.sort((a, b) => {
+    if (a.enabled !== b.enabled) return b.enabled - a.enabled;
+    const aTime = a.state?.lastRunAtMs || 0;
+    const bTime = b.state?.lastRunAtMs || 0;
+    return bTime - aTime;
+  });
+  
+  filteredJobs = jobs;
+  renderJobs();
+}
+
+function renderJobs() {
+  const container = document.getElementById('jobsGrid');
+  
+  if (!filteredJobs.length) {
+    container.innerHTML = '<div class="empty-state"><p>no cron jobs match criteria</p></div>';
+    return;
+  }
+  
+  const html = filteredJobs.map(job => createJobCard(job)).join('');
+  container.innerHTML = html;
+}
+
+function createJobCard(job) {
+  const scheduleText = formatSchedule(job.schedule);
+  const status = job.enabled ? 'enabled' : 'disabled';
+  const lastStatus = job.state?.lastStatus || 'never';
+  const lastRun = job.state?.lastRunAtMs;
+  const nextRun = job.state?.nextRunAtMs;
+  const duration = job.state?.lastDurationMs;
+  
+  const sessionTarget = job.sessionTarget || 'main';
+  const payloadKind = job.payload?.kind || 'unknown';
+  const model = job.payload?.model;
+  
+  const statusClass = lastStatus === 'ok' ? 'ok' : (lastStatus === 'error' ? 'error' : '');
+  
+  return `
+    <div class="job-card" onclick="openJobDetail('${escapeHtml(job.id)}')">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="status-dot status-${status}"></div>
+          <div class="card-name">${escapeHtml(job.name)}</div>
+        </div>
+        <div class="card-badges">
+          ${model ? `<div class="model-pill">${escapeHtml(model.split('/').pop())}</div>` : ''}
+          <div class="badge badge-${sessionTarget}">${sessionTarget}</div>
+          <div class="badge badge-${payloadKind}">${payloadKind}</div>
+        </div>
+      </div>
+      
+      <div class="card-schedule">${escapeHtml(scheduleText)}</div>
+      
+      <div class="card-meta">
+        <span>ID: ${job.id.slice(0, 8)}</span>
+        ${lastRun ? `<span>Last: ${formatTime(lastRun)} ago</span>` : '<span>Never run</span>'}
+        ${duration ? `<span>Duration: ${formatDuration(duration)}</span>` : ''}
+        ${nextRun ? `<span>Next: ${formatTime(nextRun)}</span>` : ''}
+      </div>
+      
+      <div class="status-info">
+        <div class="status-row">
+          <span class="status-label">Status:</span>
+          <span class="status-value ${statusClass}">${lastStatus === 'never' ? 'Never run' : lastStatus.toUpperCase()}</span>
+        </div>
+        ${job.delivery?.mode ? `
+          <div class="status-row">
+            <span class="status-label">Delivery:</span>
+            <span class="status-value">${job.delivery.mode}</span>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div class="card-actions" onclick="event.stopPropagation()">
+        <div class="toggle-switch ${job.enabled ? 'on' : ''}" onclick="toggleJob('${job.id}', ${!job.enabled})">
+          <div class="toggle-knob"></div>
+        </div>
+        <button class="run-btn" onclick="runJob('${job.id}')" ${!job.enabled ? 'disabled' : ''}>
+          run now
+        </button>
+      </div>
+      
+      ${job.payload?.message ? `
+        <div class="payload-section">
+          <div class="payload-toggle" onclick="event.stopPropagation(); togglePayload(this)">
+            ▶ payload message
+          </div>
+          <div class="payload-content">${escapeHtml(truncateText(job.payload.message, 200))}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function formatSchedule(schedule) {
+  if (!schedule) return 'No schedule';
+  
+  switch (schedule.kind) {
+    case 'every':
+      const ms = schedule.everyMs;
+      if (ms >= 86400000) return `every ${Math.floor(ms / 86400000)}d`;
+      if (ms >= 3600000) return `every ${Math.floor(ms / 3600000)}h`;
+      if (ms >= 60000) return `every ${Math.floor(ms / 60000)}m`;
+      return `every ${Math.floor(ms / 1000)}s`;
+    
+    case 'cron':
+      return `cron ${schedule.expr}${schedule.tz ? ` (${schedule.tz})` : ''}`;
+    
+    case 'at':
+      const atTime = new Date(schedule.atMs);
+      return `at ${atTime.toLocaleString()}`;
+    
+    default:
+      return `${schedule.kind} schedule`;
+  }
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return '—';
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return 'future'; // Next run time
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return seconds + 's';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + 'm';
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + 'h';
+  return Math.floor(hours / 24) + 'd';
+}
+
+function formatDuration(ms) {
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return Math.floor(ms / 1000) + 's';
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes}m${seconds}s`;
+}
+
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
+function togglePayload(element) {
+  const content = element.nextElementSibling;
+  const isExpanded = content.classList.contains('expanded');
+  content.classList.toggle('expanded');
+  element.textContent = (isExpanded ? '▶' : '▼') + ' payload message';
+}
+
+async function toggleJob(jobId, enabled) {
+  try {
+    const response = await fetch('/api/cron/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, enabled })
+    });
+    
+    const result = await response.json();
+    
+    if (result.error) {
+      showToast('error', 'Error', result.error);
+      return;
+    }
+    
+    showToast('success', 'Updated', `Job ${enabled ? 'enabled' : 'disabled'}`);
+    refreshData();
+  } catch (error) {
+    showToast('error', 'Error', error.message);
+  }
+}
+
+async function runJob(jobId) {
+  const job = allJobs.find(j => j.id === jobId);
+  if (!job) return;
+  
+  showToast('info', 'Running', `Starting ${job.name}...`);
+  
+  try {
+    const response = await fetch('/api/cron/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId })
+    });
+    
+    const result = await response.json();
+    
+    if (result.error) {
+      showToast('error', 'Failed', result.error);
+      return;
+    }
+    
+    showToast('success', 'Started', `Job execution initiated`);
+    
+    // Refresh after a delay to pick up the run
+    setTimeout(refreshData, 2000);
+  } catch (error) {
+    showToast('error', 'Error', error.message);
+  }
+}
+
+async function openJobDetail(jobId) {
+  const job = allJobs.find(j => j.id === jobId);
+  if (!job) return;
+  
+  selectedJob = job;
+  document.getElementById('detailPanel').style.display = 'flex';
+  document.getElementById('panelTitle').textContent = job.name;
+  
+  const meta = document.getElementById('panelMeta');
+  meta.innerHTML = `
+    <span>ID: ${job.id.slice(0, 8)}</span>
+    <span>${job.enabled ? '● enabled' : '○ disabled'}</span>
+    <span>${formatSchedule(job.schedule)}</span>
+    <span class="badge badge-${job.sessionTarget || 'main'}">${job.sessionTarget || 'main'}</span>
+    ${job.payload?.model ? `<span>${job.payload.model.split('/').pop()}</span>` : ''}
+  `;
+  
+  await loadJobHistory(jobId);
+}
+
+async function loadJobHistory(jobId) {
+  const container = document.getElementById('historyContainer');
+  container.innerHTML = '<div class="loading-spinner">loading run history...</div>';
+  
+  try {
+    const response = await fetch(`/data/cron-runs/${jobId}`);
+    const data = await response.json();
+    
+    if (data.error) {
+      container.innerHTML = `<div class="loading-spinner">Error: ${data.error}</div>`;
+      return;
+    }
+    
+    const runs = data.runs || [];
+    
+    if (!runs.length) {
+      container.innerHTML = '<div class="empty-state"><p>no run history</p></div>';
+      return;
+    }
+    
+    const html = runs.reverse().map(run => createRunEntry(run)).join('');
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `<div class="loading-spinner">Failed: ${error.message}</div>`;
+  }
+}
+
+function createRunEntry(run) {
+  const status = run.status || 'unknown';
+  const timestamp = new Date(run.ts).toLocaleString();
+  const duration = run.durationMs ? formatDuration(run.durationMs) : '';
+  
+  return `
+    <div class="run-entry status-${status}">
+      <div class="run-header">
+        <div class="run-status status-${status}">${status.toUpperCase()}</div>
+        <div class="run-timestamp">${timestamp}</div>
+      </div>
+      ${run.summary ? `<div class="run-summary">${escapeHtml(run.summary)}</div>` : ''}
+      <div class="run-meta">
+        ${duration ? `<span>Duration: ${duration}</span>` : ''}
+        ${run.sessionId ? `<span>Session: ${run.sessionId.slice(0, 8)}</span>` : ''}
+        ${run.nextRunAtMs ? `<span>Next: ${formatTime(run.nextRunAtMs)}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function closeDetailPanel() {
+  const panel = document.getElementById('detailPanel');
+  panel.style.display = 'none';
+  panel.classList.remove('detached');
+  document.getElementById('detachBtn').textContent = '⧉';
+  selectedJob = null;
+}
+
+function toggleDetachPanel() {
+  const panel = document.getElementById('detailPanel');
+  const btn = document.getElementById('detachBtn');
+  panel.classList.toggle('detached');
+  btn.textContent = panel.classList.contains('detached') ? '⊟' : '⧉';
+  btn.title = panel.classList.contains('detached') ? 'Restore' : 'Fullscreen';
+}
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.key === 'Escape') e.target.blur();
+      return;
+    }
+    switch (e.key) {
+      case '/': e.preventDefault(); document.getElementById('searchInput').focus(); break;
+      case 'Escape': closeDetailPanel(); break;
+      case 'r': refreshData(); break;
+    }
+  });
+}
+
+function showToast(type, title, message) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = {success: '✓', error: '✗', info: '●'};
+  toast.innerHTML = `
+    <div class="toast-icon">${icons[type] || '●'}</div>
+    <div class="toast-content">
+      <div class="toast-title">${title}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 16);
+  setTimeout(() => { 
+    toast.classList.remove('show'); 
+    setTimeout(() => toast.remove(), 200); 
+  }, 5000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
